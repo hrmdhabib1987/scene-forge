@@ -38,6 +38,7 @@ details summary{cursor:pointer;color:var(--mu);font-size:13px}video#final{width:
 <tr><td></td><td>Hugging Face FLUX.1-schnell</td><td><span class="pill fr">free token</span> monthly quota; <span class="pill">HF_TOKEN</span></td></tr>
 <tr><td></td><td>fal.ai FLUX schnell</td><td><span class="pill pd">paid</span> <span class="pill">FAL_KEY</span></td></tr>
 <tr><td><b>AI video</b> (text→video, image→video, motion, camera)</td><td>fal.ai (LTX-Video, Wan, Kling)</td><td><span class="pill pd">paid credits</span> per clip; 40–50 scenes ≈ 40–50 paid clips</td></tr>
+<tr><td><b>Free camera-motion video</b></td><td>FFmpeg (animates your generated still image)</td><td><span class="pill fr">free</span> zoom/pan effect; not AI character animation</td></tr>
 <tr><td></td><td>Replicate (LTX-Video)</td><td><span class="pill pd">paid</span> per second of GPU</td></tr>
 <tr><td></td><td>Self-hosted open models (LTX, Wan, CogVideoX)</td><td>Free software but needs your own 16–24 GB+ GPU — not provided here</td></tr>
 <tr><td>Voiceover</td><td>Edge-TTS (server) / espeak-ng</td><td><span class="pill fr">free</span> Edge-TTS is an unofficial service, no SLA; espeak is robotic</td></tr>
@@ -62,8 +63,8 @@ details summary{cursor:pointer;color:var(--mu);font-size:13px}video#final{width:
 <div><label>Voice</label><select id="voice"></select></div>
 <div><label>Voice engine</label><select id="engine"><option value="edge">Edge-TTS (free)</option><option value="espeak">espeak-ng (offline, robotic)</option></select></div>
 <div><label>Image provider</label><select id="iprov"><option value="pollinations">Pollinations (free, no key)</option><option value="huggingface">Hugging Face (free token)</option><option value="fal">fal.ai (paid)</option></select></div>
-<div><label>Video provider</label><select id="vprov"><option value="huggingface-free">Hugging Face Wan 2.2 (experimental free)</option><option value="fal">fal.ai (paid)</option><option value="replicate">Replicate (paid)</option></select></div>
-<div><label>Video model (fal)</label><select id="vmodel"><option value="ltx">LTX-Video (cheapest, open)</option><option value="wan">Wan 2.x (open)</option><option value="kling">Kling 1.6 (best motion, pricier)</option></select></div><div class="sub" style="grid-column:1/-1">Free Wan 2.2 is experimental and works only in Image → video mode. Generate each scene image through the connected backend first; the public Hugging Face Space may be busy or unavailable.</div>
+<div><label>Video provider</label><select id="vprov"><option value="motion-free">Free Motion (FFmpeg, no API key)</option><option value="huggingface-free">Hugging Face Wan 2.2 (experimental free)</option><option value="fal">fal.ai (paid)</option><option value="replicate">Replicate (paid)</option></select></div>
+<div><label>Video model (fal)</label><select id="vmodel"><option value="ltx">LTX-Video (cheapest, open)</option><option value="wan">Wan 2.x (open)</option><option value="kling">Kling 1.6 (best motion, pricier)</option></select></div><div class="sub" style="grid-column:1/-1">Free Motion works with a scene image generated through the backend and creates a free zoom-in camera effect; it does not animate characters. Free Wan 2.2 is experimental and works only in Image → video mode. Generate each scene image through the connected backend first; the public Hugging Face Space may be busy or unavailable.</div>
 </div></section>
 
 <section><h2><i>3</i>Continuity bible</h2><div class="sub" style="margin-bottom:8px">Added to every scene's prompt together with one fixed seed. Describe exactly once; be specific.</div><div class="grid">
@@ -142,7 +143,7 @@ async function doImg(i){const s=S.scenes[i],[w,h]=gdims(),prompt=imgPrompt(s,i),
   let r;try{r=await fetch(u)}catch(e){throw new Error('Pollinations unreachable (network/CORS/service down).')}
   if(!r.ok||!(r.headers.get('content-type')||'').startsWith('image'))throw new Error('Pollinations error HTTP '+r.status);s.img=URL.createObjectURL(await r.blob());s.backend=false}}
 async function doVid(i){need();const s=S.scenes[i];if($('vmode').value=='i2v'&&!(s.img&&s.backend))throw new Error('Image→video needs this scene\'s image generated through the backend first.');
- const r=await job('video',{index:i+1,provider:$('vprov').value,model:$('vmodel').value,mode:$('vmode').value,prompt:vidPrompt(s,i),duration:+$('dur').value,aspect:$('aspect').value});s.vid=r.url}
+ const [w,h]=dims();const r=await job('video',{index:i+1,provider:$('vprov').value,model:$('vmodel').value,mode:$('vmode').value,prompt:vidPrompt(s,i),duration:+$('dur').value,aspect:$('aspect').value,w,h});s.vid=r.url}
 async function doAud(i){need();const s=S.scenes[i];if($('usevo').value!='1')throw new Error('Voiceover is turned off in settings.');const r=await job('tts',{index:i+1,text:s.text,voice:$('voice').value,engine:$('engine').value,lang:$('lang').value});s.aud=r.url}
 const FN={img:doImg,vid:doVid,aud:doAud};
 async function one(i,k){if(busy)return;busy=true;stop=false;S.scenes[i].err='';prog(10,`Scene ${i+1}: ${k}…`);try{await FN[k](i);prog(100,'Done')}catch(e){S.scenes[i].err=e.message;prog(0,'Failed')}upd(i);save();busy=false}
