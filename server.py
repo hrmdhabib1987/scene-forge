@@ -214,7 +214,7 @@ def vid_huggingface_free(p, job, img):
             6,                         # quality
             'UniPCMultistep',           # scheduler
             3.0,                       # flow_shift
-            24,                        # frame_multiplier
+            16,                        # frame_multiplier
             True,                      # safe_mode (requests extra GPU time)
             True,                      # video_component
             api_name='/generate_video'
