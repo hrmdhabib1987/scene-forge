@@ -27,7 +27,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:7px 6px;b
 details summary{cursor:pointer;color:var(--mu);font-size:13px}video#final{width:100%;max-width:360px;border-radius:12px;background:#000}
 .tag{position:absolute;top:6px;left:6px;background:#000a;border-radius:6px;padding:1px 7px;font-size:11px;color:#fff;z-index:2}
 </style></head><body>
-<header><h1>Scene <b>Forge</b></h1><div class="sub">Paste your script → one scene per segment → AI image → video → voice, music → MP4. Image prompts prioritize each scene description; results can still vary by provider.</div></header>
+<header><h1>Scene <b>Forge</b></h1><div class="sub">Paste your script → one scene per segment → AI image → video → voice, music → MP4. Each image prompt targets that scene’s first line/title plus its details; results can still vary by provider.</div></header>
 <main>
 <div id="mode"></div>
 
@@ -115,15 +115,18 @@ function gdims(){let[w,h]=dims();const k=Math.min(1,1024/Math.max(w,h));w=Math.r
 const CAMS=["tracking shot following the subject","slow dolly in","pan left to right","tilt up","slow zoom in","dolly out","handheld, subtle shake"];
 function camFor(i){const c=$('cam').value;return c=='cycle'?CAMS[i%CAMS.length]:c}
 function imgPrompt(s,i){
- const scene=String(s.text||'').replace(/^\\s*(?:SCENE|Scene)\\s*\\d+\\s*[—–:-]?\\s*/,'').trim();
+ const lines=String(s.text||'').split(/\\r?\\n/).map(x=>x.trim()).filter(Boolean);
+ const title=(lines[0]||'').replace(/^\\s*(?:SCENE|Scene)\\s*\\d+\\s*[—–:-]?\\s*/,'').trim();
+ const details=lines.slice(1).join(' ').trim();
  return [
-  'IMPORTANT: Make one image that faithfully depicts the exact scene described below. The scene description is the highest priority. Do not invent a different event, subject, location, time of day, or action. Show the specific objects and action mentioned in the scene. If the scene says sunrise, show sunrise; if it says night, show night. Do not replace the scene with a generic desert picture.',
-  'EXACT SCENE TO ILLUSTRATE: '+scene,
-  $('chars').value&&'Character continuity requirements: '+$('chars').value,
-  $('env').value&&'Environment continuity requirements: '+$('env').value,
-  'Visual style: '+$('style').value,
-  'Composition: portrait 9:16 unless another aspect ratio is selected. One coherent realistic frame. No text, no captions, no collage, no watermark.'
- ].filter(Boolean).join('. ')
+  'Create a distinct image for scene '+(i+1)+'.',
+  'PRIMARY SCENE / FIRST LINE: '+title+'. This title defines the main subject and moment and must be clearly visible in the image.',
+  details ? 'SCENE DETAILS: '+details : '',
+  $('chars').value ? 'Keep this character appearance consistent only if relevant to this scene: '+$('chars').value : '',
+  $('env').value ? 'Setting guidance, only where it does not conflict with the scene: '+$('env').value : '',
+  'Visual style: '+$('style').value+'.',
+  'Show this scene, not another scene. Do not reuse a generic image or depict a different time of day, action, or location. No text, no captions, no collage, no watermark.'
+ ].filter(Boolean).join(' ');
 }
 function vidPrompt(s,i){return [s.text,$('chars').value&&'Character: '+$('chars').value,$('env').value&&'Setting: '+$('env').value,'natural realistic body motion, believable walking/running, expressive faces','camera: '+camFor(i),$('style').value].filter(Boolean).join('. ')}
 
@@ -147,9 +150,9 @@ async function job(type,payload){const r=await fetch('/api/job/'+type,{method:'P
 function need(){if(!H)throw new Error('Backend is not running — this step cannot work without it. Start server.py (see README).')}
 
 async function doImg(i){const s=S.scenes[i],[w,h]=gdims(),prompt=imgPrompt(s,i),seed=+$('seed').value;
- if(H){const r=await job('image',{index:i+1,provider:$('iprov').value,prompt,w,h,seed});s.img=r.url;s.backend=true}
+ if(H){const sceneSeed=seed+i;const r=await job('image',{index:i+1,provider:$('iprov').value,prompt,w,h,seed:sceneSeed});s.img=r.url;s.backend=true}
  else{ if($('iprov').value!='pollinations')throw new Error('Without the backend only Pollinations works (other providers need server-side keys).');
-  const u=`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0,1500))}?width=${w}&height=${h}&seed=${seed}&model=flux&nologo=true`;
+  const u=`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0,1500))}?width=${w}&height=${h}&seed=${seed+i}&model=flux&nologo=true`;
   let r;try{r=await fetch(u)}catch(e){throw new Error('Pollinations unreachable (network/CORS/service down).')}
   if(!r.ok||!(r.headers.get('content-type')||'').startsWith('image'))throw new Error('Pollinations error HTTP '+r.status);s.img=URL.createObjectURL(await r.blob());s.backend=false}}
 async function doVid(i){need();const s=S.scenes[i];if($('vmode').value=='i2v'&&!(s.img&&s.backend))throw new Error('Image→video needs this scene\'s image generated through the backend first.');
