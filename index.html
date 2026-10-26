@@ -27,7 +27,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:7px 6px;b
 details summary{cursor:pointer;color:var(--mu);font-size:13px}video#final{width:100%;max-width:360px;border-radius:12px;background:#000}
 .tag{position:absolute;top:6px;left:6px;background:#000a;border-radius:6px;padding:1px 7px;font-size:11px;color:#fff;z-index:2}
 </style></head><body>
-<header><h1>Scene <b>Forge</b></h1><div class="sub">Paste your script → one scene per segment → real AI image → real AI video → voice, music → MP4. Nothing is faked: if a provider fails, you see why.</div></header>
+<header><h1>Scene <b>Forge</b></h1><div class="sub">Paste your script → one scene per segment → AI image → video → voice, music → MP4. Image prompts prioritize each scene description; results can still vary by provider.</div></header>
 <main>
 <div id="mode"></div>
 
@@ -114,7 +114,17 @@ function dims(){const sh=+$('res').value,a=$('aspect').value;let w,h;if(a=='9:16
 function gdims(){let[w,h]=dims();const k=Math.min(1,1024/Math.max(w,h));w=Math.round(w*k/16)*16;h=Math.round(h*k/16)*16;return[w,h]} // image gen size
 const CAMS=["tracking shot following the subject","slow dolly in","pan left to right","tilt up","slow zoom in","dolly out","handheld, subtle shake"];
 function camFor(i){const c=$('cam').value;return c=='cycle'?CAMS[i%CAMS.length]:c}
-function imgPrompt(s,i){return [$('style').value,$('chars').value&&'Characters: '+$('chars').value,$('env').value&&'Setting: '+$('env').value,'Scene: '+s.text,'vertical composition, consistent characters and wardrobe, no text, no watermark'].filter(Boolean).join('. ')}
+function imgPrompt(s,i){
+ const scene=String(s.text||'').replace(/^\\s*(?:SCENE|Scene)\\s*\\d+\\s*[—–:-]?\\s*/,'').trim();
+ return [
+  'IMPORTANT: Make one image that faithfully depicts the exact scene described below. The scene description is the highest priority. Do not invent a different event, subject, location, time of day, or action. Show the specific objects and action mentioned in the scene. If the scene says sunrise, show sunrise; if it says night, show night. Do not replace the scene with a generic desert picture.',
+  'EXACT SCENE TO ILLUSTRATE: '+scene,
+  $('chars').value&&'Character continuity requirements: '+$('chars').value,
+  $('env').value&&'Environment continuity requirements: '+$('env').value,
+  'Visual style: '+$('style').value,
+  'Composition: portrait 9:16 unless another aspect ratio is selected. One coherent realistic frame. No text, no captions, no collage, no watermark.'
+ ].filter(Boolean).join('. ')
+}
 function vidPrompt(s,i){return [s.text,$('chars').value&&'Character: '+$('chars').value,$('env').value&&'Setting: '+$('env').value,'natural realistic body motion, believable walking/running, expressive faces','camera: '+camFor(i),$('style').value].filter(Boolean).join('. ')}
 
 function render(){$('count').textContent=`${S.scenes.length} scene(s)  =  ${S.scenes.length} script segment(s).`;
