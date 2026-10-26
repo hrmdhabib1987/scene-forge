@@ -214,7 +214,7 @@ def vid_huggingface_free(p, job, img):
             6,                         # quality
             'UniPCMultistep',           # scheduler
             3.0,                       # flow_shift
-            16,                        # frame_multiplier
+            24,                        # frame_multiplier
             True,                      # safe_mode (requests extra GPU time)
             True,                      # video_component
             api_name='/generate_video'
@@ -261,10 +261,61 @@ def vid_huggingface_free(p, job, img):
     except Exception as e:
         raise ProviderError('Free Wan 2.2 connection failed: ' + f'{type(e).__name__}: {e}'[:300])
 
+
+# Free fallback: create a subtle Ken Burns camera-motion video from the scene still.
+# This is not generative AI animation; it animates the camera over the generated image.
+def vid_motion_free(p, job, img):
+    if not img or not Path(img).is_file():
+        raise ProviderError('Generate the scene image first.')
+
+    ffmpeg = shutil.which('ffmpeg')
+    if not ffmpeg:
+        raise ProviderError('FFmpeg is not installed on the server.')
+
+    try:
+        duration = max(1.0, min(float(p.get('duration', 3)), 15.0))
+        fps = 24
+        frames = max(24, int(duration * fps))
+        width = max(2, int(p.get('w', 1280)) // 2 * 2)
+        height = max(2, int(p.get('h', 720)) // 2 * 2)
+    except (TypeError, ValueError):
+        raise ProviderError('Invalid video duration or dimensions.')
+
+    out = Path(img).with_name(Path(img).stem + '_motion.mp4')
+    vf = (
+        f'scale={width}:{height}:force_original_aspect_ratio=increase,'
+        f'crop={width}:{height},'
+        f"zoompan=z='min(zoom+0.0015,1.12)':"
+        f"x='iw/2-(iw/zoom/2)':"
+        f"y='ih/2-(ih/zoom/2)':"
+        f"d={frames}:s={width}x{height}:fps={fps},"
+        'format=yuv420p'
+    )
+
+    setp(job, 'Creating free camera-motion video…', 30)
+    run([
+        ffmpeg, '-y', '-loop', '1', '-i', str(img),
+        '-vf', vf, '-t', f'{duration:.2f}',
+        '-an', '-c:v', 'libx264', '-preset', 'ultrafast',
+        '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+        str(out)
+    ], timeout=180)
+
+    if not out.is_file() or out.stat().st_size < 1000:
+        raise ProviderError('Motion video creation failed.')
+    try:
+        content = out.read_bytes()
+    finally:
+        out.unlink(missing_ok=True)
+
+    return content
+
+
 VID = {
     'fal': vid_fal,
     'replicate': vid_replicate,
-    'huggingface-free': vid_huggingface_free
+    'huggingface-free': vid_huggingface_free,
+    'motion-free': vid_motion_free
 }
 
 # ---------------- AUDIO ----------------
